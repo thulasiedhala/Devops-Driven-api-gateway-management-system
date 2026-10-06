@@ -1,0 +1,61 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: gatewaydb
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  management-service:
+    build: ./management-service
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/gatewaydb?useSSL=false&allowPublicKeyRetrieval=true
+      DB_USER: root
+      DB_PASS: root
+      JWT_SECRET: change-this-secret-key-at-least-32-bytes-long-123
+      INTERNAL_KEY: internal-secret
+    depends_on:
+      mysql: { condition: service_healthy }
+    ports: ["8081:8081"]
+
+  gateway-service:
+    build: ./gateway-service
+    environment:
+      MANAGEMENT_URL: http://management-service:8081
+      JWT_SECRET: change-this-secret-key-at-least-32-bytes-long-123
+      INTERNAL_KEY: internal-secret
+    depends_on: [management-service, sample-backend]
+    ports: ["9080:8080"]
+
+  sample-backend:
+    build: ./sample-backend
+    ports: ["8082:8082"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:9080
+    ports: ["5173:80"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes: ["./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+    depends_on: [gateway-service]
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes: ["./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro"]
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  mysql-data:
