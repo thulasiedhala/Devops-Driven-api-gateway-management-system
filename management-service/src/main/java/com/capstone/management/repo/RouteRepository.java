@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface RouteRepository extends JpaRepository<GatewayRoute, Long> {
     List<GatewayRoute> findByEnabledTrue();
+    boolean existsByRouteId(String routeId);
 }

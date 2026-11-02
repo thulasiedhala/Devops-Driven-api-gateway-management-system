@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -23,9 +24,11 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
     private final SecretKey key;
+    private final MeterRegistry metrics;
 
-    public JwtAuthGlobalFilter(@Value("${jwt.secret}") String secret) {
+    public JwtAuthGlobalFilter(@Value("${jwt.secret}") String secret, MeterRegistry metrics) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.metrics = metrics;
     }
 
     @Override
@@ -36,7 +39,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         }
         String header = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith("Bearer ")) {
-            return reject(exchange);
+            return reject(exchange, "missing_token");
         }
         try {
             Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(header.substring(7)).getPayload();
@@ -46,11 +49,12 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                     .build();
             return chain.filter(exchange.mutate().request(req).build());
         } catch (JwtException | IllegalArgumentException e) {
-            return reject(exchange);
+            return reject(exchange, "invalid_token");
         }
     }
 
-    private Mono<Void> reject(ServerWebExchange exchange) {
+    private Mono<Void> reject(ServerWebExchange exchange, String reason) {
+        metrics.counter("gateway.auth.rejected", "reason", reason).increment();
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         return exchange.getResponse().setComplete();
     }

@@ -1,0 +1,5 @@
+# Keep line endings the same on Windows and Linux so git does not show every file as changed.
+* text=auto eol=lf
+*.sh text eol=lf
+*.png binary
+*.jpg binary

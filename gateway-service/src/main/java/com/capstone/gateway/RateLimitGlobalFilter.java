@@ -1,5 +1,6 @@
 package com.capstone.gateway;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -21,9 +22,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RateLimitGlobalFilter implements GlobalFilter, Ordered {
     private final Map<String, AtomicInteger> counters = new ConcurrentHashMap<>();
     private final int defaultLimit;
+    private final MeterRegistry metrics;
 
-    public RateLimitGlobalFilter(@Value("${app.default-rate-limit-per-min}") int defaultLimit) {
+    public RateLimitGlobalFilter(@Value("${app.default-rate-limit-per-min}") int defaultLimit,
+                                 MeterRegistry metrics) {
         this.defaultLimit = defaultLimit;
+        this.metrics = metrics;
     }
 
     @Override
@@ -40,6 +44,7 @@ public class RateLimitGlobalFilter implements GlobalFilter, Ordered {
         int count = counters.computeIfAbsent(route.getId() + ":" + ip, k -> new AtomicInteger()).incrementAndGet();
 
         if (count > limit) {
+            metrics.counter("gateway.rate.limited", "route", route.getId()).increment();
             exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
             return exchange.getResponse().setComplete();
         }

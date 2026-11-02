@@ -8,6 +8,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+/** Creates the demo admin user and a starter set of routes. Existing data is never overwritten. */
 @Component
 public class DataSeeder implements CommandLineRunner {
     private final UserRepository users;
@@ -27,13 +28,20 @@ public class DataSeeder implements CommandLineRunner {
             a.setRole("ADMIN");
             users.save(a);
         }
-        if (routes.count() == 0) {
-            GatewayRoute r = new GatewayRoute();
-            r.setRouteId("product-service");
-            r.setPath("/products/**");
-            r.setUri("http://sample-backend:8082");
-            r.setRateLimitPerMin(20);
-            routes.save(r);
-        }
+        seed("product-service",   "/products/**",  20);
+        seed("order-service",     "/orders/**",    30);
+        seed("user-service",      "/users/**",     50);
+        seed("payment-service",   "/payments/**",  15);
+        seed("inventory-service", "/inventory/**", 40);
+    }
+
+    private void seed(String routeId, String path, int limitPerMin) {
+        if (routes.existsByRouteId(routeId)) return;
+        GatewayRoute r = new GatewayRoute();
+        r.setRouteId(routeId);
+        r.setPath(path);
+        r.setUri("http://sample-backend:8082");
+        r.setRateLimitPerMin(limitPerMin);
+        routes.save(r);
     }
 }

@@ -34,17 +34,18 @@ jobs:
       - run: npm install && npm run build
         working-directory: frontend
 
-  deploy-check:
+  full-stack-test:
     needs: [backend, frontend]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Smoke test full stack
-        run: |
-          docker compose up -d --build
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST localhost:8080/api/auth/login \
-              -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}') && [ "$code" = "200" ] && exit 0
-            sleep 5
-          done
-          docker compose logs && exit 1
+      - name: Start the full stack
+        run: docker compose up -d --build
+      - name: Run the smoke test
+        run: bash scripts/smoke-test.sh http://localhost:8080
+      - name: Show service logs if the test failed
+        if: failure()
+        run: docker compose logs --tail=60
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v

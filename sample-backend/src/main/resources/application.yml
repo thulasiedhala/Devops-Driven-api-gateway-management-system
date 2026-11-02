@@ -3,3 +3,8 @@ server:
 spring:
   application:
     name: sample-backend
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

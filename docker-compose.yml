@@ -30,7 +30,7 @@ services:
       JWT_SECRET: change-this-secret-key-at-least-32-bytes-long-123
       INTERNAL_KEY: internal-secret
     depends_on: [management-service, sample-backend]
-    ports: ["9080:8080"]
+    ports: ["${GATEWAY_PORT:-8080}:8080"]
 
   sample-backend:
     build: ./sample-backend
@@ -40,7 +40,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://localhost:9080
+        VITE_API_URL: http://localhost:${GATEWAY_PORT:-8080}
     ports: ["5173:80"]
 
   prometheus:
@@ -53,7 +53,10 @@ services:
     image: grafana/grafana:latest
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
-    volumes: ["./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro"]
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/gateway-overview.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports: ["3000:3000"]
     depends_on: [prometheus]
 
