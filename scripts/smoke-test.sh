@@ -12,7 +12,12 @@ check() {  # name expected actual
 }
 login() {  # username password -> prints token
   curl -s -X POST "$BASE/api/auth/login" -H 'Content-Type: application/json' \
-    -d "{\"username\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p'
+    -d "{\"username\":\"$1\",\"password\":\"$2\"}" \
+    | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("token", ""), end="")
+except Exception:
+    pass'
 }
 
 echo "Waiting for the gateway at $BASE ..."
@@ -44,9 +49,16 @@ done
 
 echo "--- Management API and roles ---"
 check "admin can list routes" 200 "$(code "$BASE/api/routes" -H "$AUTH")"
-curl -s -o /dev/null -X POST "$BASE/api/auth/register" -H 'Content-Type: application/json' -d '{"username":"ci-user","password":"ci-pass-123"}'
-USER_TOKEN=$(login ci-user ci-pass-123)
-check "normal user cannot add a route" 403 "$(code -X POST "$BASE/api/routes" -H "Authorization: Bearer $USER_TOKEN" -H 'Content-Type: application/json' -d '{"routeId":"x","path":"/x/**","uri":"http://x"}')"
+CI_USER="ci-user-$(date +%s)"
+CI_PASS="ci-pass-123"
+curl -s -o /dev/null -X POST "$BASE/api/auth/register" -H 'Content-Type: application/json' -d "{\"username\":\"$CI_USER\",\"password\":\"$CI_PASS\"}"
+USER_TOKEN=$(login "$CI_USER" "$CI_PASS")
+if [ -n "$USER_TOKEN" ]; then
+  check "normal user cannot add a route" 403 "$(code -X POST "$BASE/api/routes" -H "Authorization: ******" -H 'Content-Type: application/json' -d '{"routeId":"x","path":"/x/**","uri":"http://x"}')"
+else
+  echo "FAIL  normal user login did not return a token"
+  fail=$((fail+1))
+fi
 
 echo "--- Rate limiting ---"
 limited=0
