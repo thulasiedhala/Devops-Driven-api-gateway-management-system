@@ -1,3 +1,4 @@
+
 package com.capstone.management.security;
 
 import org.springframework.context.annotation.Bean;
@@ -17,17 +18,49 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain chain(HttpSecurity http, JwtAuthFilter jwtFilter) throws Exception {
-        http.csrf(c -> c.disable())
-            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-            .authorizeHttpRequests(a -> a
-                .requestMatchers("/api/auth/**", "/internal/**", "/actuator/**").permitAll()
-                .anyRequest().authenticated())
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+    SecurityFilterChain chain(HttpSecurity http, JwtAuthFilter jwtFilter)
+            throws Exception {
+
+        http
+            .csrf(csrf -> csrf.disable())
+
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+
+            .exceptionHandling(exception -> exception
+
+                // Return 401 when the user is not authenticated
+                .authenticationEntryPoint(
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)
+                )
+
+                // Return 403 when an authenticated user lacks permission
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                })
+            )
+
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                    "/api/auth/**",
+                    "/internal/**",
+                    "/actuator/**"
+                ).permitAll()
+
+                .anyRequest().authenticated()
+            )
+
+            .addFilterBefore(
+                jwtFilter,
+                UsernamePasswordAuthenticationFilter.class
+            );
+
         return http.build();
     }
 
     @Bean
-    PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 }
